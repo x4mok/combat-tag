@@ -1,0 +1,54 @@
+# ========================
+# Player Protection Settings
+# ========================
+
+safe-time: 1800  # Time in seconds after a player joins for the first time during which they cannot be attacked.
+
+# ========================
+# Combat Settings
+# ========================
+
+combat-tag-time: 15  # Time in seconds that players are combat tagged after dealing or receiving damage.
+
+allow-elytra: false  # Whether Elytra use is allowed during PvP combat.
+allow-log: false  # Whether combat logging is allowed (not recommended to set to false).
+
+blocked-commands:  # Commands players cannot use while in combat.
+  - spawn
+  - home
+
+actionbar-combat: true  # Display the player you're in combat with and the combat time in the action bar.
+
+# ========================
+# Punishment Settings
+# ========================
+
+combat-log-punish: DEATH  # Punishment for combat logging: DEATH - NONE - TEMPBAN.
+
+tempban-time: 300  # Duration of temporary ban in seconds (only relevant if combat-log-punish is set to TEMPBAN).
+
+escalation: true  # Enable punishment escalation for repeated combat logging.
+escalation-punish:  # List of escalating punishments for combat logging.
+  - DEATH  # First offense results in death.
+  - TEMPBAN  # Further offenses result in a temporary ban.
+
+do-last-escalation-punish: true  # If a player exceeds the number of escalation punishments, apply the final punishment in the list.
+
+bans-persist: false  # Whether temporary bans should persist after a server restart.
+
+# ========================
+# Notifications and Messages
+# ========================
+
+notify-combat-tag: true  # Notify players when they enter combat.
+notify-combat-log: true  # Notify the other party when a player combat logs.
+
+messages:
+  combat-tag: "&cYou are now in combat! Logging out will result in a penalty."  # Message when entering combat.
+  safe-time: "&aYou are currently unable to be attacked."  # Message during safe time.
+  combat-log-punish: "&cYou logged out during combat! You have been punished: %punishment%"  # Message when combat logging penalty is applied.
+  tempban-message: "&cYou have been temporarily banned for combat logging. Ban time: %time% seconds."  # Message for temporary ban duration.
+
+# ========================
+# Miscellaneous Settings
+# ========================

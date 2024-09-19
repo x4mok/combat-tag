@@ -1,0 +1,26 @@
+name: CombatTag
+version: '0.0.1-BETA'
+main: com.x4mok.combatTag.CombatTag
+api-version: '1.18'
+prefix: CombatTag
+load: STARTUP
+authors: [ x4mok ]
+description: A Minecraft plugin that lets players right-click blocks to receive random rewards, such as items or experience, adding a fun and interactive way to earn bonuses in-game.
+
+commands:
+  PVP:
+    usage: pvp <enable>
+    description: A command that allows the player to enable pvp if they are currently safe
+    permission: combattag.commands.allow-remove-safe-time
+    permission-message: You do not have sufficient perms to use this command!
+
+permissions:
+  combattag.combat.allow-elytra:
+    description: Allows players in combat to use elytras
+    default: false
+  combattag.combat.allow-disconnect:
+    description: Allows players in combat to disconnect without dying
+    default: false
+  combattag.commands.allow-remove-safe-time:
+    description: Allows players to use the pvp command
+    default: op

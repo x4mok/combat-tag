@@ -1,0 +1,11 @@
+todo list
+- Enable
+- Kill on log
+- Player safe time on first join
+- Disable elytra
+- Block commands
+- Sort out tempban
+- Sort out escalation
+- Make persisting bans
+- Combat notify
+- Log notify
