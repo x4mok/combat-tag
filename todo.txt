@@ -1,10 +1,21 @@
 todo list
-- Enable
-- Kill on log
+- combat handler # Checker for if player is in combat/ put player in combat # 1 ✔️
+  - add in combat ✔️
+  - check in combat ✔️
+  - remove from combat ✔️
+  - tick combat timers down
+- Kill on log # 2
+  - check config
+  - make killer last person that attacked them (aka last "enemy" in combat handler)
+- Sort out tempban # 3
+  - check config
+
+
+# unordered #
+- Enable # Create configs
 - Player safe time on first join
 - Disable elytra
 - Block commands
-- Sort out tempban
 - Sort out escalation
 - Make persisting bans
 - Combat notify

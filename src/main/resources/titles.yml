@@ -1,0 +1,21 @@
+kills:
+  5: Newbie
+  25: Novice
+  100: Amateur
+  250: Trainee
+  500: Junior
+  1000: Senior
+  5000: Advanced
+  10000: Proficient
+  50000: Expert
+  100000: Master
+  500000: Champion
+  1000000: Without Fear
+  10000000: God Killer
+deaths:
+  10000: The Noob
+combat-logs:
+  1: The Logger
+  5: Rage Quitter
+  100: He Gone
+  5000: Can you even see me?

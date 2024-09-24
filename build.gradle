@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'com.x4mok'
-version = '0.0.1-BETA'
+version = '0.0.4-ALPHA'
 
 repositories {
     mavenCentral()

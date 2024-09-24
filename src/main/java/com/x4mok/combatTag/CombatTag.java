@@ -1,6 +1,7 @@
 package com.x4mok.combatTag;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
 import net.md_5.bungee.api.ChatMessageType;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -10,53 +11,43 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
-import net.md_5.bungee.api.chat.TextComponent;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public final class CombatTag extends JavaPlugin implements Listener {
-	Map<String, Map<String, Object>> inCombat = new HashMap<>();
-	Map<String, Integer> log_times = new HashMap<>();
-	Map<String, Map<String, Object>> bans = new HashMap<>();
-	Map<String, Long> unbanTime = new HashMap<>();
 	Plugin plugin = this;
+	// Create the combat handler
+	CombatHandler combatHandler = new CombatHandler();
 
 	@Override
 	public void onEnable() {
 		getLogger().info("Combat Tag is loading...");
 
+		// Save the plugin config
 		saveDefaultConfig();
-		createBansConfig();
-
+		// Register event handler so it can be used
 		getServer().getPluginManager().registerEvents(this, this);
+		// Combat timer ticker
+		combatHandler.tickCombatTimers(this);
 
-		Bukkit.getScheduler().runTaskTimer(this, this::tickCombatTimers, 0L, 20L);
-
+		// Send the "mark" of the plugin
 		getLogger().info("Combat Tag successfully loaded!");
 		Bukkit.getConsoleSender().sendMessage(ChatColor.RED + "" + ChatColor.BOLD + " __ ___");
 		Bukkit.getConsoleSender().sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "/    | " + ChatColor.GREEN + "Loaded Succesfully!");
 		Bukkit.getConsoleSender().sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "\\__  |" + ChatColor.AQUA + "Version v" + plugin.getDescription().getVersion());
 		String version = plugin.getDescription().getVersion();
-		if (version.toUpperCase().endsWith("BETA")) {
-			getLogger().warning("This is a beta version of the plugin!");
-			getLogger().warning("Please report all bugs to @x4mok on discord!");
-		} else if (version.toUpperCase().endsWith("ALPHA")) {
-			getLogger().warning("This is an alpha version of the plugin!");
-			getLogger().warning("Please report all bugs to @x4mok on discord!");
-		} else if (version.toUpperCase().endsWith("DEV")) {
-			getLogger().warning("This is an dev version of the plugin!");
-			getLogger().warning("Please report all bugs to @x4mok on discord!");
-		} else {
-			getLogger().info("This should be a stable build of the plugin,");
-			getLogger().info("if you encounter any bugs please report them to @x4mok on discord.");
-		}
+		// Warnings in case of unstable build
+		sendPluginMessage(version);
 	}
 
 	@Override
@@ -65,210 +56,216 @@ public final class CombatTag extends JavaPlugin implements Listener {
 	}
 
 	@EventHandler
-	public void onPlayerJoin(PlayerJoinEvent event) {
-		Player player = event.getPlayer();
-		String playerID = player.getUniqueId().toString();
-		Map<String,Object> plrBan = bans.getOrDefault(playerID, null);
-
-		if (plrBan != null) {
-			if (!(Boolean) plrBan.get("active") && System.currentTimeMillis() < unbanTime.getOrDefault(playerID, System.currentTimeMillis() + 300)) {
-				plrBan.put("active", true);
-				bans.put(playerID, plrBan);
-				long time = System.currentTimeMillis();
-				long timeAtUnban = time + ((int)plrBan.get("time") * 1000L);
-				unbanTime.put(playerID, timeAtUnban);
-				player.kick(Component.text("You recently combat logged! Try again in " + plrBan.get("time") + " seconds!"));
-			}
-		}
-	}
-
-	@EventHandler
 	public void onPlayerQuit(PlayerQuitEvent event) {
-		Player player = event.getPlayer();
-		if (checkCombatStatus(player)) {
-			String playerID = player.getUniqueId().toString();
-			Map<String, Object> playerThing = inCombat.getOrDefault(playerID, null);
-			if (playerThing != null) {
-				// Get the original log amount
-				Integer log_amount = log_times.getOrDefault(playerID, 0);
-				Integer new_log_amount = log_amount + 1;
-				log_times.put(playerID, new_log_amount);
+		Player player = event.getPlayer(); // The player who is quitting
 
-				String enemy = (String) playerThing.getOrDefault("enemy", null);
-				UUID enemyID = UUID.fromString(enemy);
-				Player enemyPlayer = Bukkit.getPlayer(enemyID);
+		if (combatHandler.getInCombat(player)) {
+			boolean allowLog = (boolean) getFromConfig("allow-log");
+			String combatLogPunish = (String) getFromConfig("combat-log-punish");
 
-				// give player kill credit
-				// although check config first for what happens there
-				FileConfiguration config = getConfig();
-				String combatLogOption = config.getString("combat-log-punish", "DEATH");
-				List<String> escalationList = config.getStringList("escalation-punish");
-				boolean doEscalation = config.getBoolean("escalation");
-
-				if (log_amount != 0 && doEscalation && !escalationList.isEmpty()) {
-					String punish = combatLogOption;
-
-					// Determine the punishment based on escalation list and config
-					if (log_amount <= escalationList.size()) {
-						punish = escalationList.get(log_amount - 1);
-					} else if (config.getBoolean("do-last-escalation-punish")) {
-						punish = escalationList.get(escalationList.size() - 1);
-					}
-
-					// Execute the punishment
-					if (!punish.equalsIgnoreCase("NONE")) {
-						player.setKiller(enemyPlayer); // kill player if they log lmfao
-						if (punish.equalsIgnoreCase("TEMPBAN")) {
-							// Create a map to hold the player's information
-							Map<String, Object> playerInfo = new HashMap<>();
-
-							// Add "active" and "time" to the player's map
-							playerInfo.put("active", false);
-							playerInfo.put("time", config.getInt("tempban-time"));
-
-							// Put the player's information map into the 'bans' map under the playerID
-							bans.put(playerID, playerInfo);
-						}
-					}
-				} else {
-					if (!combatLogOption.equalsIgnoreCase("NONE")) {
-						player.setKiller(enemyPlayer); // kill player if they log lmfao
-						if (combatLogOption.equalsIgnoreCase("TEMPBAN")) {
-							// do tempban logic here
-							// sort out config/ file storage for tempban in startup or enable first tho
-						}
-					}
+			// Null or error checks
+			if (!allowLog && combatLogPunish != null && !combatLogPunish.equals("-13") && !combatLogPunish.equalsIgnoreCase("NONE")) {
+				Player enemy = combatHandler.getEnemy(player);  // Get the enemy
+				if (enemy != null) {
+					player.setKiller(enemy);  // Set the enemy as the killer
 				}
+				// Kill the player explicitly to punish combat logging
+				player.setHealth(0.0);  // This will kill the player, might not work though
+				getLogger().info("Player might have died");
+				simulatePlayerDeath(player);
 			}
-			// combat code on disconnect
-			// create a persisting thing in bans.yml
-			// so that players get a 5-min ban after their disc
-			// so if they try to rejoin they cooked until its up,
-			// or they die whichever
-			// or even nun happens
 		}
 	}
 
+	// Player Death simulator
+	public void simulatePlayerDeath(Player player) {
+		// Get player's inventory contents and filter out null values
+		List<ItemStack> drops = Arrays.stream(player.getInventory().getContents())
+				.filter(Objects::nonNull)  // Remove null items
+				.collect(Collectors.toList());
+
+		// Create a custom PlayerDeathEvent with filtered drops
+		PlayerDeathEvent deathEvent = new PlayerDeathEvent(player, drops, 0, player.getName() + " combat logged!");
+
+		// Call the event so other plugins or the server can handle it
+		Bukkit.getServer().getPluginManager().callEvent(deathEvent);
+
+		// Broadcast the death message manually if needed
+		// Bukkit.broadcastMessage(player.getName() + " was slain after quitting!");
+	}
+
+	// Player Death handler
+	@EventHandler
+	public void onPlayerDeath(PlayerDeathEvent event) {
+		Player player = event.getEntity();  // The player who died
+		Player killer = player.getKiller();  // The player who killed (could be null)
+
+		// Fetch the custom death message setting
+		boolean customDeathMessages = (boolean) getFromConfig("custom-kill-messages");
+
+		// Only proceed with custom death messages if enabled in the config
+		if (customDeathMessages) {
+			String deathMessageKey = (killer != null) ? "kill-messages.pvp" : "kill-messages.pve";
+
+			// Retrieve the death message from the config
+			String deathMessage = (String) getFromConfig(deathMessageKey);
+
+			// Null check and error code (-13) check
+			if (deathMessage != null && !deathMessage.equals("-13")) {
+				// Replace placeholders for player and killer names
+				deathMessage = deathMessage.replace("%player%", player.getName());
+
+				if (killer != null) {
+					deathMessage = deathMessage.replace("%killer%", killer.getName());
+				}
+
+				deathMessage = ChatColor.translateAlternateColorCodes('&', deathMessage);
+
+				// Set the custom death message
+				event.setDeathMessage(deathMessage);
+			}
+		}
+
+		// Remove the player from combat
+		combatHandler.removeFromCombat(player);
+	}
+
+	// Combat Initiator
 	@EventHandler
 	public void onEntityDamage(EntityDamageByEntityEvent event) {
 		// Check if the entity taking damage is a player
-		if (event.getEntity() instanceof Player) {
-			Player damagedPlayer = (Player) event.getEntity();
+		if (event.getEntity() instanceof Player victim) {
 
 			// Check if the damager is also a player
-			if (event.getDamager() instanceof Player) {
-				Player damagerPlayer = (Player) event.getDamager();
+			if (event.getDamager() instanceof Player attacker) {
 
 				// Handle the combat logic
-				handleCombat(damagedPlayer, damagerPlayer);
+				// need to create a combat logic handler
+				// Put player in combat <--
+				int combatTime = (int) getFromConfig("combat-tag-time");
+				// Put the player who got attacked first into the thing
+				combatHandler.putInCombat(victim, attacker, true, combatTime);
+				// Put the player who attacked first into the thing
+				combatHandler.putInCombat(attacker, victim, false, combatTime);
 			}
 		}
 	}
 
-	public void handleCombat(Player attackedplr, Player attackerplr) {
-		// Retrieve combat time from config, default to 15 if not set or invalid
-		int combatTime = getCombatTime();
-		if (combatTime == -13) {
-			combatTime = 15;
+	// Combat handler full class
+	static class CombatHandler {
+		private final Map<UUID, Map<String, Object>> playerCombat = new HashMap<>();
+		// PlayerID:
+		//   Enemy: EnemyID
+		//   Victim: false # or true
+		//   Time: 15 # In seconds, how long the player has left of combat
+		// remove the player when their time reaches 0 (time <= 0)
+
+		// Puts the player mentioned in combat (NOTE: DOES NOT PUT THE ENEMY IN COMBAT)
+		public void putInCombat(Player player, Player enemy, boolean victim, int time) {
+			Map<String, Object> tempMap = new HashMap<>();
+			tempMap.put("Enemy", enemy);
+			tempMap.put("Victim", victim);
+			tempMap.put("Time", time);
+			playerCombat.put(player.getUniqueId(), tempMap);
 		}
 
-		// Update combat status for both players
-		updateCombatStatus(attackedplr, combatTime, attackerplr);
-		updateCombatStatus(attackerplr, combatTime, attackedplr);
-	}
-
-	public static void saveNestedMapToConfig(File configFile, Map<String, Map<String, Object>> data) {
-		// Load the existing configuration
-		FileConfiguration config = YamlConfiguration.loadConfiguration(configFile);
-
-		// Set the 'saved' key with the nested map
-		config.set("saved", data);
-
-		// Save the updated configuration to the file
-		try {
-			config.save(configFile);
-		} catch (IOException e) {
-			e.printStackTrace();
+		// Returns true if the player is in the Map with a time that would suggest a player being in combat (>0)
+		public boolean getInCombat(Player player) {
+			Map<String, Object> plrNested = playerCombat.get(player.getUniqueId());
+			if (plrNested != null) {
+				return (int) plrNested.get("Time") > 0;
+			}
+			return false;
 		}
-	}
 
-	private void updateCombatStatus(Player player, int combatTime, Player player2) {
-		String id = player.getUniqueId().toString();
-		String id2 = player2.getUniqueId().toString();
-		Map<String, Object> playerData = new HashMap<>();
-		playerData.put("time", combatTime);
-		playerData.put("combat", true); // Assuming the player is in combat
-		playerData.put("enemy", id2);
-
-		inCombat.put(id, playerData);
-	}
-
-	public void sendActionBar(Player player, String message) {
-		// Create a TextComponent for the message
-		TextComponent text = new TextComponent(message);
-
-		// Send the message to the player’s action bar
-		player.spigot().sendMessage(ChatMessageType.ACTION_BAR, text);
-	}
-
-	public int getCombatTime() {
-		return getConfig().getInt("combat-tag-time", -13);
-	}
-
-	public boolean checkCombatStatus(Player player) {
-		return inCombat.containsKey(player.getUniqueId().toString());
-	}
-
-	public void createBansConfig() {
-		File bansFile = new File(getDataFolder(), "bans.yml");
-		if (!bansFile.exists()) {
-			bansFile.getParentFile().mkdirs();
-			saveResource("bans.yml", false); // Copies `bans.yml` from the plugin's resources folder if it exists.
+		public Player getEnemy(Player player) {
+			Map<String, Object> plrNested = playerCombat.get(player.getUniqueId());
+			if (plrNested != null) {
+				return (Player) plrNested.getOrDefault("Enemy", null);
+			}
+			return null;
 		}
-		YamlConfiguration bansConfig = YamlConfiguration.loadConfiguration(bansFile);
-	}
 
-	public void tickCombatTimers() {
-		Iterator<Map.Entry<String, Map<String, Object>>> iterator = inCombat.entrySet().iterator();
+		public void removeFromCombat(Player player) {
+			playerCombat.remove(player.getUniqueId());
+		}
 
-		while (iterator.hasNext()) {
-			Map.Entry<String, Map<String, Object>> entry = iterator.next();
-			String playerId = entry.getKey();
-			Map<String, Object> playerData = entry.getValue();
-
-			// Get the current combat time
-			int currentTime = (int) playerData.getOrDefault("time", 0);
-
-			if (currentTime > 0) {
-				// Decrement the combat time
-				playerData.put("time", currentTime - 1);
-
-				// Update the player's combat status
-				inCombat.put(playerId, playerData);
-
-				// Optionally, notify the player if needed
-				if (getConfig().getBoolean("actionbar-combat", true)) {
-					Player player = Bukkit.getPlayer(UUID.fromString(playerId));
-					if (player != null) {
-						Map<String, Object> playerThing = inCombat.getOrDefault(playerId, null);
-						if (playerThing != null) {
-							String player2Thing = (String) playerThing.getOrDefault("enemy", null);
-							if (player2Thing != null) {
-								Integer time = (Integer) playerThing.getOrDefault("time", null);
-								if (time != null) {
-									sendActionBar(player, "In Combat to " + Bukkit.getPlayer(player2Thing).getName() + ": " + time + " seconds remaining.");
+		public void tickCombatTimers(Plugin plugin) {
+			// Schedule a repeating task that runs every second (20 ticks)
+			Bukkit.getScheduler().runTaskTimer(plugin, new Runnable() {
+				@Override
+				public void run() {
+					// This code will run every second
+					for (Map.Entry<UUID, Map<String, Object>> entry : playerCombat.entrySet()) {
+						for (Map.Entry<String, Object> entry2 : entry.getValue().entrySet()) {
+							if (entry2.getKey().equalsIgnoreCase("Time")) {
+								if ((int) entry2.getValue() > 0) {
+									entry.getValue().put("Time", (int) entry2.getValue() - 1);
+									playerCombat.put(entry.getKey(), entry.getValue());
+								} else {
+									removeFromCombat(Objects.requireNonNull(Bukkit.getPlayer(entry.getKey())));
 								}
-
 							}
 						}
-
 					}
 				}
-			} else {
-				// Remove the player from combat if time is up
-				iterator.remove();
-			}
+			}, 0L, 20L); // 0L = no initial delay, 20L = 20 ticks (1 second) interval
 		}
+	}
 
+
+
+
+
+
+
+
+
+
+
+	// Config grabber
+	public Object getFromConfig(String key) {
+		FileConfiguration config = getConfig();
+		Object toReturn = config.get(key);
+		if (toReturn != null) {
+			return toReturn;
+		} else {
+			getLogger().info("That was not a valid line in the configuration!");
+		}
+		getLogger().warning("Error in getFromConfig function line:" + getLineNumber());
+		return -13;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	// Line grabber for code/ error messages
+	public int getLineNumber() {
+		return Thread.currentThread().getStackTrace()[2].getLineNumber();
+	}
+
+	// Can be "hidden" at the bottom
+	public void sendPluginMessage(String version) { // Sends the plugin
+		String reportTo = "@x4mok on discord";
+		if (version.toUpperCase().endsWith("BETA")) {
+			getLogger().warning("This is a beta version of the plugin!");
+			getLogger().warning("Please report all bugs to " + reportTo + "!");
+		} else if (version.toUpperCase().endsWith("ALPHA")) {
+			getLogger().warning("This is an alpha version of the plugin!");
+			getLogger().warning("Please report all bugs to " + reportTo + "!");
+		} else if (version.toUpperCase().endsWith("DEV")) {
+			getLogger().warning("This is a dev version of the plugin!");
+			getLogger().warning("Please report all bugs to " + reportTo + "!");
+		} else {
+			getLogger().info("This should be a stable build of the plugin,");
+			getLogger().info("if you encounter any bugs please report them to " + reportTo + ".");
+		}
 	}
 }

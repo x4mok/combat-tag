@@ -56,5 +56,5 @@ messages:
 enable-titles: true # Titles.yml titles enabled at their respective points
 custom-kill-messages: true
 kill-messages:
-  pvp: "&4%player% was killed by %killer%!"
+  pvp: "&4%player% was killed by %killer% because %player% combat logged!"
   pve: "&6%player% has met an unfortunate end!"

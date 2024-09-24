@@ -1,5 +1,5 @@
 name: CombatTag
-version: '0.0.4-ALPHA' # -BETA -ALPHA -DEV or none
+version: '0.0.3-ALPHA' # -BETA -ALPHA -DEV or none
 # Alpha - not all features are added
 # Beta - features are added but not properly tested or working
 # Dev - new features added after Alpha which need to be tested
